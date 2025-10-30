@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Task 4: Stream Ages
-Compute the average age of users without using SQL's AVG() function.
+Task 4: Stream User Ages
+Compute the average user age without using SQL's AVG() function.
 """
 
 import sqlite3
 
-def stream_ages():
+def stream_user_ages():
     """
-    Stream user ages from the user_data table one by one.
+    Generator that yields user ages one by one from the user_data table.
     """
     conn = sqlite3.connect("airbnb.db")
     cursor = conn.cursor()
@@ -19,26 +19,26 @@ def stream_ages():
         if not rows:
             break
         for (age,) in rows:
-            yield age  # ✅ Stream ages one by one
+            yield age  # ✅ Yield ages one by one
 
     conn.close()
 
 
 def compute_average_age():
     """
-    Compute the average age manually using streamed data.
+    Computes the average age manually using streamed data.
     """
     total_age = 0
     count = 0
 
-    for age in stream_ages():
+    for age in stream_user_ages():
         total_age += age
         count += 1
 
     if count == 0:
         return 0
 
-    average_age = total_age / count  # ✅ Compute manually, no AVG()
+    average_age = total_age / count  # ✅ Manual average calculation
     return average_age
 
 
