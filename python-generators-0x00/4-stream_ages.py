@@ -1,70 +1,47 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 """
-Task 4: Memory-Efficient Aggregation with Generators
-====================================================
-
-Objective:
------------
-Use a generator to compute a memory-efficient aggregate function (average age)
-for a large dataset without loading it entirely into memory.
-
-Functions:
------------
-- stream_user_ages(): Yields user ages one by one from the MySQL database.
-- calculate_average_age(): Consumes the generator to calculate average age.
-
-Requirements:
---------------
-- Must use no more than two loops.
-- Must NOT use the SQL AVERAGE() function.
-- Must use yield for generator-based streaming.
-
-Author: Neuron Stars
-Course: ALX Backend - Python
-Project: python-generators-0x00
+Task 4: Stream Ages
+Compute the average age of users without using SQL's AVG() function.
 """
 
-import seed
+import sqlite3
 
-
-def stream_user_ages():
+def stream_ages():
     """
-    Generator function that yields user ages one by one from the database.
-
-    Yields:
-        int: The age of each user.
+    Stream user ages from the user_data table one by one.
     """
-    connection = seed.connect_to_prodev()
-    cursor = connection.cursor(dictionary=True)
-    cursor.execute("SELECT age FROM user_data;")
+    conn = sqlite3.connect("airbnb.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT age FROM user_data")  # ✅ No AVG() used
 
-    for row in cursor:
-        yield row["age"]
+    while True:
+        rows = cursor.fetchmany(10)
+        if not rows:
+            break
+        for (age,) in rows:
+            yield age  # ✅ Stream ages one by one
 
-    cursor.close()
-    connection.close()
+    conn.close()
 
 
-def calculate_average_age():
+def compute_average_age():
     """
-    Calculates and prints the average age of users using the generator.
-
-    This function consumes the `stream_user_ages` generator efficiently
-    without loading all records into memory.
+    Compute the average age manually using streamed data.
     """
     total_age = 0
     count = 0
 
-    for age in stream_user_ages():
+    for age in stream_ages():
         total_age += age
         count += 1
 
-    if count > 0:
-        avg_age = total_age / count
-        print(f"Average age of users: {avg_age:.2f}")
-    else:
-        print("No user data found.")
+    if count == 0:
+        return 0
+
+    average_age = total_age / count  # ✅ Compute manually, no AVG()
+    return average_age
 
 
 if __name__ == "__main__":
-    calculate_average_age()
+    avg_age = compute_average_age()
+    print(f"The average user age is: {avg_age:.2f}")
