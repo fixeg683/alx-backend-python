@@ -1,56 +1,42 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
-Task 1: Stream Users
-====================
+Task 1: Generator that streams rows from an SQL database one by one
+===================================================================
 
-This script streams all user data efficiently (e.g., from a database or API)
-and prints it in real time without loading everything into memory at once.
+Objective:
+-----------
+Use a Python generator (`yield`) to stream rows from the `user_data`
+table one by one.
 
-It demonstrates generator-based streaming in Python for handling large datasets.
-
-Author: Neuron Stars
-Course: ALX Back-End Development
-Project: Airbnb Clone Backend
+Requirements:
+-------------
+- Use the yield statement.
+- Use only one loop.
+- Return rows as dictionaries with user details.
 """
 
-import time
-import json
-
-# Simulated user data source (could be replaced by a real DB query or API call)
-USERS = [
-    {"id": 1, "name": "Alice Johnson", "email": "alice@example.com", "role": "host"},
-    {"id": 2, "name": "Bob Smith", "email": "bob@example.com", "role": "guest"},
-    {"id": 3, "name": "Charlie Brown", "email": "charlie@example.com", "role": "host"},
-    {"id": 4, "name": "Diana Prince", "email": "diana@example.com", "role": "guest"},
-    {"id": 5, "name": "Ethan Hunt", "email": "ethan@example.com", "role": "host"},
-]
+import seed
 
 
-def stream_users(users):
+def stream_users():
     """
-    Generator function that yields one user record at a time.
-
-    Args:
-        users (list): List of user dictionaries.
-
+    Generator function that streams rows one by one from the user_data table.
     Yields:
-        dict: A user record.
+        dict: Each row containing user_id, name, email, and age.
     """
-    for user in users:
-        yield user
-        time.sleep(0.5)  # Simulate streaming delay
+    connection = seed.connect_to_prodev()
+    cursor = connection.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM user_data;")
+
+    for row in cursor:
+        yield row
+
+    cursor.close()
+    connection.close()
 
 
-def main():
-    """
-    Main entry point for the script.
-    Streams all users and prints them in real-time JSON format.
-    """
-    print("🔄 Streaming user data...\n")
-    for user in stream_users(USERS):
-        print(json.dumps(user, indent=4))
-    print("\n✅ All users have been streamed successfully.")
-
-
+# Optional test for standalone execution
 if __name__ == "__main__":
-    main()
+    from itertools import islice
+    for user in islice(stream_users(), 5):
+        print(user)
