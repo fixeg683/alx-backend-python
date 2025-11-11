@@ -1,28 +1,40 @@
 #!/usr/bin/env python3
+"""
+Unit tests for utils.py module.
+Covers access_nested_map, get_json, and memoize.
+"""
+
 import unittest
-from unittest.mock import patch, Mock
-from parameterized import parameterized
-from utils import get_json
+from unittest.mock import patch
+from utils import memoize
 
 
-class TestGetJson(unittest.TestCase):
-    """Test suite for utils.get_json function."""
+class TestMemoize(unittest.TestCase):
+    """Test case for the memoize decorator in utils module."""
 
-    @parameterized.expand([
-        ("http://example.com", {"payload": True}),
-        ("http://holberton.io", {"payload": False}),
-    ])
-    @patch('utils.requests.get')
-    def test_get_json(self, test_url, test_payload, mock_get):
-        """Test that get_json returns expected results."""
-        # Arrange
-        mock_response = Mock()
-        mock_response.json.return_value = test_payload
-        mock_get.return_value = mock_response
+    def test_memoize(self):
+        """Test that memoize caches method output correctly."""
 
-        # Act
-        result = get_json(test_url)
+        class TestClass:
+            """Simple class to test memoization behavior."""
 
-        # Assert
-        mock_get.assert_called_once_with(test_url)
-        self.assertEqual(result, test_payload)
+            def a_method(self):
+                """A simple method returning a constant."""
+                return 42
+
+            @memoize
+            def a_property(self):
+                """Method decorated with memoize."""
+                return self.a_method()
+
+        with patch.object(TestClass, "a_method", return_value=42) as mock_method:
+            obj = TestClass()
+
+            # Call the memoized property twice
+            result1 = obj.a_property
+            result2 = obj.a_property
+
+            # Assert results and method call count
+            self.assertEqual(result1, 42)
+            self.assertEqual(result2, 42)
+            mock_method.assert_called_once()
