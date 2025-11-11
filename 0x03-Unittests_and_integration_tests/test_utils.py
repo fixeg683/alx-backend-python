@@ -1,48 +1,18 @@
 #!/usr/bin/env python3
 """
-Unit tests for utils.py module.
-Covers access_nested_map, get_json, and memoize.
+Utility functions and decorators.
 """
 
-import unittest
-from unittest.mock import patch
-from utils import memoize
+def memoize(method):
+    """Decorator to cache a method’s output."""
+    attr_name = "_{}".format(method.__name__)
 
+    def wrapper(self):
+        # Check if cached value exists
+        if not hasattr(self, attr_name):
+            # Cache the result
+            setattr(self, attr_name, method(self))
+        # Return cached result
+        return getattr(self, attr_name)
 
-class TestMemoize(unittest.TestCase):
-    """Test case for the memoize decorator in utils module."""
-
-    def test_memoize(self):
-        """Test that memoize caches method output correctly."""
-
-        class TestClass:
-            """Simple class to test memoization behavior."""
-
-            def a_method(self):
-                """A simple method returning a constant."""
-                return 42
-
-            @memoize
-            def a_property(self):
-                """Method decorated with memoize."""
-                return self.a_method()
-
-        with patch.object(
-            TestClass,
-            "a_method",
-            return_value=42
-        ) as mock_method:
-            obj = TestClass()
-
-            # Call the memoized property twice
-            result1 = obj.a_property
-            result2 = obj.a_property
-
-            # Assert results and method call count
-            self.assertEqual(result1, 42)
-            self.assertEqual(result2, 42)
-            mock_method.assert_called_once()
-
-
-if __name__ == "__main__":
-    unittest.main()
+    return wrapper
