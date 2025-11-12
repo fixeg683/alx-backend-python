@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Unit tests for utils.py module.
-Covers access_nested_map, get_json, and memoize.
+Unit tests for the utils module.
+Tests the memoize decorator.
 """
 
 import unittest
@@ -10,16 +10,16 @@ from utils import memoize
 
 
 class TestMemoize(unittest.TestCase):
-    """Test case for the memoize decorator in utils module."""
+    """Class for testing the memoize decorator in utils.py."""
 
     def test_memoize(self):
-        """Test that memoize caches method output correctly."""
+        """Test that memoize properly caches the method output."""
 
         class TestClass:
             """Simple class to test memoization behavior."""
 
             def a_method(self):
-                """A simple method returning a constant."""
+                """Return a constant value."""
                 return 42
 
             @memoize
@@ -27,10 +27,18 @@ class TestMemoize(unittest.TestCase):
                 """Method decorated with memoize."""
                 return self.a_method()
 
-        with patch.object(TestClass, "a_method", return_value=42) as mock_method:
+        with patch.object(
+            TestClass,
+            "a_method",
+            return_value=42
+        ) as mock_method:
             obj = TestClass()
+
+            # First and second calls
             result1 = obj.a_property
             result2 = obj.a_property
+
+            # Assertions
             self.assertEqual(result1, 42)
             self.assertEqual(result2, 42)
             mock_method.assert_called_once()
