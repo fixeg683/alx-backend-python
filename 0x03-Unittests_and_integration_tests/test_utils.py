@@ -1,47 +1,44 @@
 #!/usr/bin/env python3
 """
-Unit tests for the utils module.
-Tests the memoize decorator.
+Unit tests for client.py module.
+Covers GithubOrgClient class methods.
 """
 
 import unittest
 from unittest.mock import patch
-from utils import memoize
+from client import GithubOrgClient
 
 
-class TestMemoize(unittest.TestCase):
-    """Class for testing the memoize decorator in utils.py."""
+class TestGithubOrgClient(unittest.TestCase):
+    """Test case for GithubOrgClient class."""
 
-    def test_memoize(self):
-        """Test that memoize properly caches the method output."""
+    @patch("client.get_json")
+    def test_public_repos(self, mock_get_json):
+        """Test that public_repos returns the correct list of repos."""
+        # Mock data for API response
+        mock_repos = [
+            {"name": "repo1"},
+            {"name": "repo2"},
+            {"name": "repo3"},
+        ]
+        mock_get_json.return_value = mock_repos
 
-        class TestClass:
-            """Simple class to test memoization behavior."""
-
-            def a_method(self):
-                """Return a constant value."""
-                return 42
-
-            @memoize
-            def a_property(self):
-                """Method decorated with memoize."""
-                return self.a_method()
-
+        # Mock the _public_repos_url property
         with patch.object(
-            TestClass,
-            "a_method",
-            return_value=42
-        ) as mock_method:
-            obj = TestClass()
-
-            # First and second calls
-            result1 = obj.a_property
-            result2 = obj.a_property
+            GithubOrgClient,
+            "_public_repos_url",
+            new_callable=unittest.mock.PropertyMock,
+            return_value="https://api.github.com/orgs/test_org/repos"
+        ) as mock_public_url:
+            client = GithubOrgClient("test_org")
+            result = client.public_repos()
 
             # Assertions
-            self.assertEqual(result1, 42)
-            self.assertEqual(result2, 42)
-            mock_method.assert_called_once()
+            self.assertEqual(result, ["repo1", "repo2", "repo3"])
+            mock_public_url.assert_called_once()
+            mock_get_json.assert_called_once_with(
+                "https://api.github.com/orgs/test_org/repos"
+            )
 
 
 if __name__ == "__main__":
