@@ -6,21 +6,27 @@ import unittest
 from utils import access_nested_map
 
 
+# Simple parameterized implementation
+def expand(cases):
+    def decorator(f):
+        def wrapper(self):
+            for args in cases:
+                f(self, *args)
+        return wrapper
+    return decorator
+
+
 class TestAccessNestedMap(unittest.TestCase):
     """Test cases for access_nested_map function."""
 
-    def test_access_nested_map(self):
-        """Test access_nested_map with valid paths using manual parameterization."""
-        test_cases = [
-            ({"a": 1}, ("a",), 1),
-            ({"a": {"b": 2}}, ("a",), {"b": 2}),
-            ({"a": {"b": 2}}, ("a", "b"), 2),
-        ]
-        
-        for i, (nested_map, path, expected) in enumerate(test_cases):
-            with self.subTest(test_case=i):
-                result = access_nested_map(nested_map, path)
-                self.assertEqual(result, expected)
+    @expand([
+        ({"a": 1}, ("a",), 1),
+        ({"a": {"b": 2}}, ("a",), {"b": 2}),
+        ({"a": {"b": 2}}, ("a", "b"), 2),
+    ])
+    def test_access_nested_map(self, nested_map, path, expected):
+        """Test access_nested_map with valid paths."""
+        self.assertEqual(access_nested_map(nested_map, path), expected)
 
 
 if __name__ == '__main__':
