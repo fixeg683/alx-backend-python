@@ -1,54 +1,81 @@
 #!/usr/bin/env python3
 """
-Unit tests for client.py.
-Covers the GithubOrgClient class and its public_repos method.
+Unit tests for the utils module.
 """
-
 import unittest
-from unittest.mock import patch, PropertyMock
-from client import GithubOrgClient
+from unittest.mock import patch, Mock
+from parameterized import parameterized
+from utils import access_nested_map, get_json, memoize
 
 
-class TestGithubOrgClient(unittest.TestCase):
-    """Test case for the GithubOrgClient class."""
+class TestAccessNestedMap(unittest.TestCase):
+    """Test cases for access_nested_map function."""
 
-    @patch("client.get_json")
-    def test_public_repos(self, mock_get_json):
-        """
-        Test that GithubOrgClient.public_repos returns the expected list
-        of repository names and that dependencies are called correctly.
-        """
-        # Mock API payload
-        test_payload = [
-            {"name": "repo1"},
-            {"name": "repo2"},
-            {"name": "repo3"}
-        ]
-        mock_get_json.return_value = test_payload
+    @parameterized.expand([
+        ({"a": 1}, ("a",), 1),
+        ({"a": {"b": 2}}, ("a",), {"b": 2}),
+        ({"a": {"b": 2}}, ("a", "b"), 2),
+    ])
+    def test_access_nested_map(self, nested_map, path, expected):
+        """Test access_nested_map with valid paths."""
+        self.assertEqual(access_nested_map(nested_map, path), expected)
 
-        # Patch the _public_repos_url property
-        with patch.object(
-            GithubOrgClient,
-            "_public_repos_url",
-            new_callable=PropertyMock
-        ) as mock_public_url:
-            mock_public_url.return_value = (
-                "https://api.github.com/orgs/testorg/repos"
-            )
-
-            client = GithubOrgClient("testorg")
-            result = client.public_repos()
-
-            # Expected result
-            expected = ["repo1", "repo2", "repo3"]
-
-            # Assertions
-            self.assertEqual(result, expected)
-            mock_public_url.assert_called_once()
-            mock_get_json.assert_called_once_with(
-                "https://api.github.com/orgs/testorg/repos"
-            )
+    @parameterized.expand([
+        ({}, ("a",), "a"),
+        ({"a": 1}, ("a", "b"), "b"),
+    ])
+    def test_access_nested_map_exception(self, nested_map, path, expected_key):
+        """Test access_nested_map raises KeyError for invalid paths."""
+        with self.assertRaises(KeyError) as context:
+            access_nested_map(nested_map, path)
+        self.assertEqual(str(context.exception), f"'{expected_key}'")
 
 
-if __name__ == "__main__":
+class TestGetJson(unittest.TestCase):
+    """Test cases for get_json function."""
+
+    @parameterized.expand([
+        ("http://example.com", {"payload": True}),
+        ("http://holberton.io", {"payload": False}),
+    ])
+    @patch('utils.requests.get')
+    def test_get_json(self, test_url, test_payload, mock_get):
+        """Test get_json returns expected result."""
+        mock_response = Mock()
+        mock_response.json.return_value = test_payload
+        mock_get.return_value = mock_response
+
+        result = get_json(test_url)
+
+        mock_get.assert_called_once_with(test_url)
+        self.assertEqual(result, test_payload)
+
+
+class TestMemoize(unittest.TestCase):
+    """Test cases for memoize decorator."""
+
+    def test_memoize(self):
+        """Test memoize caches the result."""
+        class TestClass:
+            def a_method(self):
+                return 42
+
+            @memoize
+            def a_property(self):
+                return self.a_method()
+
+        with patch.object(TestClass, 'a_method') as mock_method:
+            mock_method.return_value = 42
+            test_instance = TestClass()
+
+            # Call a_property twice
+            result1 = test_instance.a_property
+            result2 = test_instance.a_property
+
+            self.assertEqual(result1, 42)
+            self.assertEqual(result2, 42)
+            mock_method.assert_called_once()
+
+
+if __name__ == '__main__':
     unittest.main()
