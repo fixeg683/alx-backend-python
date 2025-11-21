@@ -1,21 +1,32 @@
 from rest_framework import permissions
-from .models import Conversation
+from rest_framework.exceptions import PermissionDenied
+from .models import Conversation, Message
 
 class IsParticipantOfConversation(permissions.BasePermission):
     """
     Custom permission to allow only participants of a conversation
-    to view, send, update, or delete messages.
+    to access or modify messages.
     """
 
     def has_object_permission(self, request, view, obj):
-        # obj can be Conversation or Message
+        # For Conversation object
         if isinstance(obj, Conversation):
-            # Only participants can access conversation
             return request.user in obj.participants.all()
-        else:
-            # For Message objects, check if user is a participant in the parent conversation
+
+        # For Message object
+        if isinstance(obj, Message):
             return request.user in obj.conversation.participants.all()
 
+        return False
+
     def has_permission(self, request, view):
-        # Ensure the user is authenticated
-        return request.user and request.user.is_authenticated
+        # Only authenticated users can access
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        # For safe methods (GET, HEAD, OPTIONS) we allow
+        if request.method in permissions.SAFE_METHODS:
+            return True
+
+        # For unsafe methods, check object-level permission in viewsets
+        return True
