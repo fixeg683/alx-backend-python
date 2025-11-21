@@ -1,10 +1,11 @@
 from django.contrib import admin
 from django.urls import path, include
-from django.shortcuts import redirect
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 urlpatterns = [
-    path("", lambda request: redirect("api/")),
-    path("admin/", admin.site.urls),
-    path("api/", include("chats.urls")),        # app routes
-    path("api-auth/", include("rest_framework.urls")),  # ✅ add api-auth
+    path('admin/', admin.site.urls),
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/', include('chats.urls')),  # chats app endpoints
+    path('api-auth/', include('rest_framework.urls')),  # optional browsable API login
 ]
