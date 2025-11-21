@@ -1,19 +1,11 @@
-# chats/pagination.py
-
 from rest_framework.pagination import PageNumberPagination
 
-class MessagesPagination(PageNumberPagination):
-    """
-    Custom pagination class for messages.
-    - Default page size: 20
-    - Page query param: ?page=<number>
-    - Max page size: 100
-    """
+class MessagePagination(PageNumberPagination):
+    # 20 messages per page
     page_size = 20
-    page_query_param = "page"
+    page_size_query_param = 'page_size'  # Optional: allow clients to override
     max_page_size = 100
 
-
-# Backwards-compatible alias: some settings or imports expect `MessagePagination` (singular).
-# Provide an alias so `from chats.pagination import MessagePagination` works.
-MessagePagination = MessagesPagination
+    # Optional: customize the paginated response
+    def get_paginated_response(self, data):
+        return super().get_paginated_response(data)
