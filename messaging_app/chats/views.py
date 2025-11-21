@@ -8,9 +8,9 @@ from .permissions import IsParticipantOfConversation
 from .pagination import MessagePagination
 from rest_framework.views import APIView
 
-# -----------------------
+# --------------------------
 # API Root
-# -----------------------
+# --------------------------
 class APIRootView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -22,11 +22,10 @@ class APIRootView(APIView):
         })
 
 
-# -----------------------
+# --------------------------
 # Conversation ViewSet
-# -----------------------
+# --------------------------
 class ConversationViewSet(viewsets.ModelViewSet):
-    queryset = Conversation.objects.all()
     serializer_class = ConversationSerializer
     permission_classes = [IsAuthenticated, IsParticipantOfConversation]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -38,11 +37,10 @@ class ConversationViewSet(viewsets.ModelViewSet):
         return Conversation.objects.filter(participants=self.request.user)
 
 
-# -----------------------
+# --------------------------
 # Message ViewSet
-# -----------------------
+# --------------------------
 class MessageViewSet(viewsets.ModelViewSet):
-    queryset = Message.objects.all()
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated, IsParticipantOfConversation]
     pagination_class = MessagePagination
@@ -54,29 +52,17 @@ class MessageViewSet(viewsets.ModelViewSet):
         # Only return messages in conversations the user participates in
         return Message.objects.filter(conversation__participants=self.request.user)
 
-    def destroy(self, request, *args, **kwargs):
+    def perform_update(self, serializer):
+        # Only allow participants to update
         message = self.get_object()
-        if request.user not in message.conversation.participants.all():
-            return Response(
-                {"detail": "You do not have permission to delete this message."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().destroy(request, *args, **kwargs)
+        if self.request.user not in message.conversation.participants.all():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You cannot update this message.")
+        serializer.save()
 
-    def update(self, request, *args, **kwargs):
-        message = self.get_object()
-        if request.user not in message.conversation.participants.all():
-            return Response(
-                {"detail": "You do not have permission to update this message."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().update(request, *args, **kwargs)
-
-    def partial_update(self, request, *args, **kwargs):
-        message = self.get_object()
-        if request.user not in message.conversation.participants.all():
-            return Response(
-                {"detail": "You do not have permission to partially update this message."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().partial_update(request, *args, **kwargs)
+    def perform_destroy(self, instance):
+        # Only allow participants to delete
+        if self.request.user not in instance.conversation.participants.all():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You cannot delete this message.")
+        instance.delete()
