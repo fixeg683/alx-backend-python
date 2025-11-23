@@ -1,16 +1,12 @@
 from django.urls import path, include
-from rest_framework_nested import routers  # ✅ use rest_framework_nested
-from .views import ConversationViewSet, MessageViewSet
+from rest_framework.routers import DefaultRouter
+from .views import ConversationViewSet, MessageViewSet, APIRootView
 
-# Parent router
-router = routers.DefaultRouter()
+router = DefaultRouter()
 router.register(r'conversations', ConversationViewSet, basename='conversation')
-
-# Nested router for messages under a conversation
-conversation_router = routers.NestedDefaultRouter(router, r'conversations', lookup='conversation')
-conversation_router.register(r'messages', MessageViewSet, basename='conversation-messages')
+router.register(r'messages', MessageViewSet, basename='message')
 
 urlpatterns = [
+    path('', APIRootView.as_view(), name='api-root'),
     path('', include(router.urls)),
-    path('', include(conversation_router.urls)),  # include nested routes
 ]
