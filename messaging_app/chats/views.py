@@ -1,53 +1,29 @@
-from rest_framework import viewsets, permissions, filters
-from rest_framework.permissions import IsAuthenticated
-from django_filters.rest_framework import DjangoFilterBackend
-from .models import Conversation, Message
-from .serializers import ConversationSerializer, MessageSerializer
-from .permissions import IsParticipantOfConversation
-from .pagination import MessagePagination
-from rest_framework.views import APIView
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import AllowAny
+from django.contrib.auth import authenticate, login, logout
 
-# -----------------------
-# API Root
-# -----------------------
-class APIRootView(APIView):
-    permission_classes = [IsAuthenticated]
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_view(request):
+    """
+    Custom login view for API authentication
+    """
+    username = request.data.get('username')
+    password = request.data.get('password')
+    
+    user = authenticate(request, username=username, password=password)
+    if user is not None:
+        login(request, user)
+        return Response({'message': 'Login successful'}, status=status.HTTP_200_OK)
+    else:
+        return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
-    def get(self, request):
-        return Response({
-            "message": "Welcome to Messaging API",
-            "conversations": "/api/conversations/",
-            "messages": "/api/messages/"
-        })
-
-# -----------------------
-# Conversation ViewSet
-# -----------------------
-class ConversationViewSet(viewsets.ModelViewSet):
-    queryset = Conversation.objects.all()
-    serializer_class = ConversationSerializer
-    permission_classes = [IsAuthenticated, IsParticipantOfConversation]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['participants__username']
-    ordering_fields = ['created_at']
-
-    def get_queryset(self):
-        # Only return conversations the user participates in
-        return Conversation.objects.filter(participants=self.request.user)
-
-# -----------------------
-# Message ViewSet
-# -----------------------
-class MessageViewSet(viewsets.ModelViewSet):
-    queryset = Message.objects.all()
-    serializer_class = MessageSerializer
-    permission_classes = [IsAuthenticated, IsParticipantOfConversation]
-    pagination_class = MessagePagination
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['message_body', 'sender__username']
-    ordering_fields = ['sent_at']
-
-    def get_queryset(self):
-        # Only return messages in conversations the user participates in
-        return Message.objects.filter(conversation__participants=self.request.user)
+@api_view(['POST'])
+def logout_view(request):
+    """
+    Custom logout view for API authentication
+    """
+    logout(request)
+    return Response({'message': 'Logout successful'}, status=status.HTTP_200_OK)
