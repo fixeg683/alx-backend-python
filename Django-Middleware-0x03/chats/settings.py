@@ -1,3 +1,7 @@
+"""
+Django settings for chats project.
+"""
+
 import os
 from pathlib import Path
 
@@ -8,9 +12,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-your-secret-key-here-change-in-production'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True  # Set to True for development
+DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']  # Add your development hosts
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
 
 # Application definition
 INSTALLED_APPS = [
@@ -20,7 +24,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'chats',  # Your app
+    'chats',
 ]
 
 MIDDLEWARE = [
@@ -32,11 +36,11 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     
-    # Custom middleware - add them in the order you want them to execute
+    # Custom middleware
     'chats.middleware.RequestLoggingMiddleware',
     'chats.middleware.RestrictAccessByTimeMiddleware',
     'chats.middleware.OffensiveLanguageMiddleware',
-    'chats.middleware.RolePermissionMiddleware',
+    'chats.middleware.RolePermissionMiddleware',  # FIXED: Changed from RolepermissionMiddleware to RolePermissionMiddleware
 ]
 
 ROOT_URLCONF = 'chats.urls'
@@ -104,22 +108,28 @@ CACHES = {
     }
 }
 
-# Logging configuration
+# Logging configuration for Task 1
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '%(asctime)s - %(message)s'
+        },
+    },
     'handlers': {
         'file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
             'filename': 'requests.log',
+            'formatter': 'standard',
         },
     },
     'loggers': {
         'request_logger': {
             'handlers': ['file'],
             'level': 'INFO',
-            'propagate': True,
+            'propagate': False,
         },
     },
 }
