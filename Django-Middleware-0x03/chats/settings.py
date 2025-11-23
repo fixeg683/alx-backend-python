@@ -40,7 +40,7 @@ MIDDLEWARE = [
     'chats.middleware.RequestLoggingMiddleware',
     'chats.middleware.RestrictAccessByTimeMiddleware',
     'chats.middleware.OffensiveLanguageMiddleware',
-    'chats.middleware.RolepermissionMiddleware',  # EXACT NAME: RolepermissionMiddleware (lowercase 'p')
+    'chats.middleware.RolePermissionMiddleware',  # EXACT NAME: RolepermissionMiddleware (lowercase 'p')
 ]
 
 ROOT_URLCONF = 'chats.urls'
@@ -133,3 +133,4 @@ LOGGING = {
         },
     },
 }
+
