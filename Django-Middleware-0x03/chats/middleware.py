@@ -64,7 +64,7 @@ class OffensiveLanguageMiddleware:
         return ip
 
 # Task 4: Role Permission Middleware - FIXED CLASS NAME
-class RolePermissionMiddleware:  # Changed from RolepermissionMiddleware to RolePermissionMiddleware
+class RolepermissionMiddleware:  # Changed from RolepermissionMiddleware to RolePermissionMiddleware
     def __init__(self, get_response):
         self.get_response = get_response
 
@@ -87,3 +87,4 @@ class RolePermissionMiddleware:  # Changed from RolepermissionMiddleware to Role
     def is_moderator(self, user):
         # Check if user is in moderator group
         return user.groups.filter(name='moderator').exists()
+
