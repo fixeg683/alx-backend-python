@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     # Third-party applications
     'rest_framework',
     'rest_framework.authtoken',
-    
+    'django_filters',
     # Custom applications
     'chats',  # Our main chat application
 ]
@@ -296,3 +296,4 @@ SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
 # =====================
 # END OF CONFIGURATION
 # =====================
+
