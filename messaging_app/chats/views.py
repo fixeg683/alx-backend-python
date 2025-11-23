@@ -1,11 +1,14 @@
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
 from django.http import HttpResponseForbidden
 from .models import Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer
 from .permissions import IsAuthenticatedAndParticipant, IsMessageOwnerOrParticipant, ConversationPermissions
+from .pagination import MessagePagination, ConversationPagination
+from .filters import MessageFilter, ConversationFilter
 
 class ConversationViewSet(viewsets.ModelViewSet):
     """
@@ -14,6 +17,12 @@ class ConversationViewSet(viewsets.ModelViewSet):
     """
     serializer_class = ConversationSerializer
     permission_classes = [ConversationPermissions]
+    pagination_class = ConversationPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = ConversationFilter
+    search_fields = ['participants__username']
+    ordering_fields = ['updated_at', 'created_at']
+    ordering = ['-updated_at']
     
     def get_queryset(self):
         """
@@ -21,7 +30,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
         """
         user = self.request.user
         if user.is_authenticated:
-            return Conversation.objects.filter(participants=user)
+            return Conversation.objects.filter(participants=user).prefetch_related('participants', 'messages')
         return Conversation.objects.none()
     
     def perform_create(self, serializer):
@@ -35,21 +44,32 @@ class MessageViewSet(viewsets.ModelViewSet):
     """
     ViewSet for viewing and editing messages.
     Only authenticated participants can send, view, update and delete messages in a conversation.
+    Implements pagination (20 messages per page) and filtering.
     """
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticatedAndParticipant, IsMessageOwnerOrParticipant]
+    pagination_class = MessagePagination  # 20 messages per page
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = MessageFilter
+    search_fields = ['content', 'sender__username']
+    ordering_fields = ['timestamp', 'is_read']
+    ordering = ['-timestamp']  # Latest messages first
     
     def get_queryset(self):
         """
         Return only messages from conversations where the current user is a participant
-        Filter by conversation_id if provided
+        Apply filters and prefetch related objects for performance
         """
         user = self.request.user
         if not user.is_authenticated:
             return Message.objects.none()
             
-        # Get conversation_id from query parameters
+        # Get conversation_id from query parameters for direct filtering
         conversation_id = self.request.query_params.get('conversation_id')
+        
+        queryset = Message.objects.filter(
+            conversation__participants=user
+        ).select_related('sender', 'conversation')
         
         if conversation_id:
             # Verify user is participant in this specific conversation
@@ -57,12 +77,11 @@ class MessageViewSet(viewsets.ModelViewSet):
                 conversation = Conversation.objects.get(id=conversation_id)
                 if user not in conversation.participants.all():
                     return Message.objects.none()
-                return Message.objects.filter(conversation_id=conversation_id)
+                queryset = queryset.filter(conversation_id=conversation_id)
             except Conversation.DoesNotExist:
                 return Message.objects.none()
         
-        # Return all messages from conversations where user is participant
-        return Message.objects.filter(conversation__participants=user)
+        return queryset
     
     def perform_create(self, serializer):
         """
@@ -131,6 +150,7 @@ class MessageViewSet(viewsets.ModelViewSet):
         """
         Custom action to get messages for a specific conversation
         Requires conversation_id query parameter
+        Uses pagination (20 messages per page)
         """
         conversation_id = request.query_params.get('conversation_id')
         
@@ -149,8 +169,15 @@ class MessageViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
             
-            # Get messages for this conversation
+            # Get messages for this conversation with pagination
             messages = Message.objects.filter(conversation_id=conversation_id)
+            
+            # Apply pagination
+            page = self.paginate_queryset(messages)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+            
             serializer = self.get_serializer(messages, many=True)
             return Response(serializer.data)
             
