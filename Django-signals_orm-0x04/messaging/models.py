@@ -10,6 +10,7 @@ class Message(models.Model):
     timestamp = models.DateTimeField(default=timezone.now)
     read = models.BooleanField(default=False)
     edited = models.BooleanField(default=False)
+    edited_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='edited_messages')
     parent_message = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
     
     # Managers
@@ -37,10 +38,12 @@ class Notification(models.Model):
 class MessageHistory(models.Model):
     message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='history')
     old_content = models.TextField()
+    edited_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     edited_at = models.DateTimeField(default=timezone.now)
     
     class Meta:
         ordering = ['-edited_at']
+        verbose_name_plural = "Message histories"
     
     def __str__(self):
         return f"History for Message {self.message.id} - {self.edited_at}"
