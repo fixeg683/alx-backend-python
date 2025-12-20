@@ -1,0 +1,203 @@
+name: Django CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:  # Allows manual triggering
+
+env:
+  DJANGO_SETTINGS_MODULE: messaging_app.settings.test
+  DATABASE_URL: mysql://test_user:test_pass@127.0.0.1:3306/test_db
+  PYTHON_VERSION: '3.9'
+
+jobs:
+  test:
+    name: Run Django Tests with MySQL
+    runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test_db
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_pass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y default-libmysqlclient-dev pkg-config
+    
+    - name: Install Python Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-django pytest-cov coverage
+    
+    - name: Wait for MySQL to be Ready
+      run: |
+        for i in {1..30}; do
+          if mysqladmin ping -h"127.0.0.1" -P"3306" -u"test_user" -p"test_pass" --silent; then
+            echo "MySQL is ready!"
+            break
+          fi
+          echo "Waiting for MySQL... ($i/30)"
+          sleep 2
+        done
+    
+    - name: Create Database Schema
+      env:
+        MYSQL_HOST: 127.0.0.1
+        MYSQL_PORT: 3306
+        MYSQL_USER: test_user
+        MYSQL_PASSWORD: test_pass
+        MYSQL_DATABASE: test_db
+      run: |
+        # Create database if not exists
+        mysql -h$MYSQL_HOST -P$MYSQL_PORT -u$MYSQL_USER -p$MYSQL_PASSWORD -e "CREATE DATABASE IF NOT EXISTS $MYSQL_DATABASE;"
+        
+        # Run Django migrations
+        python manage.py makemigrations --noinput
+        python manage.py migrate --noinput
+    
+    - name: Run Django Tests with Pytest
+      env:
+        MYSQL_HOST: 127.0.0.1
+        MYSQL_PORT: 3306
+        MYSQL_USER: test_user
+        MYSQL_PASSWORD: test_pass
+        MYSQL_DATABASE: test_db
+      run: |
+        # Run tests with coverage
+        coverage run --source='.' manage.py test
+        coverage xml
+        coverage html
+        
+        # Alternatively, run with pytest
+        # pytest --cov=. --cov-report=xml --cov-report=html --junitxml=junit.xml -v
+    
+    - name: Upload Test Coverage Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: |
+          coverage.xml
+          htmlcov/
+    
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: |
+          junit.xml
+          test-reports/
+    
+    - name: Test Summary
+      if: always()
+      run: |
+        echo "Test execution completed!"
+        echo "Coverage report: htmlcov/index.html"
+        echo "Test results: junit.xml"
+
+  lint:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    needs: test
+    if: success()
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install Linting Tools
+      run: |
+        pip install flake8 black isort
+    
+    - name: Run Flake8
+      run: |
+        flake8 . --count --max-complexity=10 --max-line-length=88 --statistics
+    
+    - name: Check Code Formatting with Black
+      run: |
+        black --check .
+    
+    - name: Check Import Sorting with isort
+      run: |
+        isort --check-only --diff .
+    
+    - name: Upload Linting Results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: linting-results
+        path: |
+          flake8_report.txt
+        retention-days: 7
+
+  build:
+    name: Build and Package
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    if: success()
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install Dependencies
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Collect Static Files
+      run: |
+        python manage.py collectstatic --noinput
+    
+    - name: Create Build Artifact
+      run: |
+        # Create a timestamped build
+        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        echo "BUILD_VERSION=$TIMESTAMP" >> $GITHUB_ENV
+        
+        # Package the application
+        tar -czf messaging-app-$TIMESTAMP.tar.gz \
+          --exclude=.git \
+          --exclude=.github \
+          --exclude=*.pyc \
+          --exclude=__pycache__ \
+          .
+    
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: messaging-app-build
+        path: messaging-app-*.tar.gz
+        retention-days: 30

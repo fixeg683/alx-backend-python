@@ -1,0 +1,100 @@
+{
+  "info": {
+    "name": "Messaging App API",
+    "_postman_id": "d2b0c2fa-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "description": "Postman collection for testing the messaging_app API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "API Root",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{JWT_TOKEN}}" }
+        ],
+        "url": { "raw": "http://127.0.0.1:8000/api/", "protocol": "http", "host": ["127","0","0","1"], "port": "8000", "path": ["api"] }
+      }
+    },
+    {
+      "name": "Obtain JWT Token",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"<YOUR_USERNAME>\",\n    \"password\": \"<YOUR_PASSWORD>\"\n}"
+        },
+        "url": { "raw": "http://127.0.0.1:8000/api/token/", "protocol": "http", "host": ["127","0","0","1"], "port": "8000", "path": ["api","token"] }
+      }
+    },
+    {
+      "name": "Refresh JWT Token",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"refresh\": \"{{REFRESH_TOKEN}}\"\n}"
+        },
+        "url": { "raw": "http://127.0.0.1:8000/api/token/refresh/", "protocol": "http", "host": ["127","0","0","1"], "port": "8000", "path": ["api","token","refresh"] }
+      }
+    },
+    {
+      "name": "Conversations",
+      "item": [
+        {
+          "name": "List Conversations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{JWT_TOKEN}}" }],
+            "url": { "raw": "http://127.0.0.1:8000/api/conversations/", "protocol": "http", "host": ["127","0","0","1"], "port": "8000", "path": ["api","conversations"] }
+          }
+        },
+        {
+          "name": "Create Conversation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{JWT_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"participants\": [\"<USER_ID_1>\", \"<USER_ID_2>\"]\n}"
+            },
+            "url": { "raw": "http://127.0.0.1:8000/api/conversations/", "protocol": "http", "host": ["127","0","0","1"], "port": "8000", "path": ["api","conversations"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Messages",
+      "item": [
+        {
+          "name": "List Messages",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{JWT_TOKEN}}" }],
+            "url": { "raw": "http://127.0.0.1:8000/api/messages/", "protocol": "http", "host": ["127","0","0","1"], "port": "8000", "path": ["api","messages"] }
+          }
+        },
+        {
+          "name": "Create Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{JWT_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"conversation\": \"<CONVERSATION_ID>\",\n    \"sender\": \"<USER_ID>\",\n    \"message_body\": \"Hello!\"\n}"
+            },
+            "url": { "raw": "http://127.0.0.1:8000/api/messages/", "protocol": "http", "host": ["127","0","0","1"], "port": "8000", "path": ["api","messages"] }
+          }
+        }
+      ]
+    }
+  ]
+}

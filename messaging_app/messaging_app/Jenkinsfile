@@ -1,0 +1,94 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
+        GITHUB_CREDENTIALS = credentials('github-token')
+        DOCKER_IMAGE = 'yourusername/messaging-app'
+        DOCKER_TAG = "build-${BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'echo "Checked out code from GitHub"'
+            }
+        }
+        
+        stage('Setup Python Environment') {
+            steps {
+                withPythonEnv('python3') {
+                    sh 'python --version'
+                    sh 'pip install -r requirements.txt'
+                }
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                withPythonEnv('python3') {
+                    sh '''
+                    python manage.py test --settings=messaging_app.settings.test \
+                    --noinput --verbosity=2
+                    '''
+                }
+            }
+            post {
+                always {
+                    junit 'reports/junit/*.xml'
+                }
+            }
+        }
+        
+        stage('Generate Test Report') {
+            steps {
+                withPythonEnv('python3') {
+                    sh '''
+                    python -m pytest tests/ \
+                    --junitxml=reports/junit/test-results.xml \
+                    --html=reports/html/report.html --self-contained-html
+                    '''
+                }
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}", ".")
+                }
+            }
+        }
+        
+        stage('Push to Docker Hub') {
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', DOCKERHUB_CREDENTIALS) {
+                        docker.image("${DOCKER_IMAGE}:${DOCKER_TAG}").push()
+                        docker.image("${DOCKER_IMAGE}:${DOCKER_TAG}").push('latest')
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+            emailext (
+                subject: "Pipeline Successful: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
+                body: "The pipeline completed successfully. Build Number: ${env.BUILD_NUMBER}\nCheck console output at: ${env.BUILD_URL}",
+                to: 'team@example.com'
+            )
+        }
+        failure {
+            echo 'Pipeline failed!'
+            emailext (
+                subject: "Pipeline Failed: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
+                body: "The pipeline failed. Build Number: ${env.BUILD_NUMBER}\nCheck console output at: ${env.BUILD_URL}",
+                to: 'team@example.com'
+            )
+        }
+    }
+}

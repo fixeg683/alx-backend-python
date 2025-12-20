@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messaging-blue
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: messaging-blue
+  template:
+    metadata:
+      labels:
+        app: messaging-blue
+    spec:
+      containers:
+        - name: messaging-blue
+          image: your-dockerhub-username/messaging-app:2.0
+          ports:
+            - containerPort: 8000
