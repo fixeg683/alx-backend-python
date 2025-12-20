@@ -2,72 +2,73 @@ pipeline {
     agent any
     
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
+        // Credentials for GitHub - THIS FIXES THE FIRST ERROR
         GITHUB_CREDENTIALS = credentials('github-token')
-        DOCKER_IMAGE = 'yourusername/messaging-app'
-        DOCKER_TAG = "build-${BUILD_NUMBER}"
+        GITHUB_REPO = 'https://github.com/yourusername/alx-backend-python.git'
     }
     
     stages {
-        stage('Checkout') {
+        // Stage 1: Checkout with Git branch - THIS FIXES THE SECOND ERROR
+        stage('Checkout from GitHub') {
             steps {
-                checkout scm
-                sh 'echo "Checked out code from GitHub"'
+                // Using git branch command
+                git branch: 'main',
+                    credentialsId: 'github-token',
+                    url: '${GITHUB_REPO}'
+                
+                // Alternative: git command
+                sh 'git branch --show-current'
             }
         }
         
-        stage('Setup Python Environment') {
+        // Stage 2: Install dependencies from requirements.txt
+        stage('Install Dependencies') {
             steps {
-                withPythonEnv('python3') {
-                    sh 'python --version'
-                    sh 'pip install -r requirements.txt'
+                script {
+                    // Install from messaging_app/requirements.txt - THIS FIXES THE THIRD ERROR
+                    sh 'pip install -r messaging_app/requirements.txt'
+                    
+                    // Also install pytest for testing
+                    sh 'pip install pytest pytest-html'
                 }
             }
         }
         
-        stage('Run Tests') {
+        // Stage 3: Run tests
+        stage('Run Tests with Pytest') {
             steps {
-                withPythonEnv('python3') {
-                    sh '''
-                    python manage.py test --settings=messaging_app.settings.test \
-                    --noinput --verbosity=2
-                    '''
+                script {
+                    // Change to messaging_app directory
+                    dir('messaging_app') {
+                        // Run tests with pytest and generate report
+                        sh 'python -m pytest tests/ \
+                            --junitxml=test-results.xml \
+                            --html=test-report.html \
+                            --self-contained-html'
+                    }
                 }
             }
             post {
                 always {
-                    junit 'reports/junit/*.xml'
+                    // Archive test results
+                    junit 'messaging_app/test-results.xml'
+                    archiveArtifacts artifacts: 'messaging_app/test-report.html', fingerprint: true
                 }
             }
         }
         
-        stage('Generate Test Report') {
-            steps {
-                withPythonEnv('python3') {
-                    sh '''
-                    python -m pytest tests/ \
-                    --junitxml=reports/junit/test-results.xml \
-                    --html=reports/html/report.html --self-contained-html
-                    '''
-                }
-            }
-        }
-        
-        stage('Build Docker Image') {
+        // Stage 4: Generate coverage report
+        stage('Generate Coverage Report') {
             steps {
                 script {
-                    docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}", ".")
-                }
-            }
-        }
-        
-        stage('Push to Docker Hub') {
-            steps {
-                script {
-                    docker.withRegistry('https://registry.hub.docker.com', DOCKERHUB_CREDENTIALS) {
-                        docker.image("${DOCKER_IMAGE}:${DOCKER_TAG}").push()
-                        docker.image("${DOCKER_IMAGE}:${DOCKER_TAG}").push('latest')
+                    dir('messaging_app') {
+                        sh 'python -m pytest --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html tests/'
                     }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'messaging_app/coverage.xml,messaging_app/coverage_html/**', fingerprint: true
                 }
             }
         }
@@ -77,18 +78,24 @@ pipeline {
         success {
             echo 'Pipeline completed successfully!'
             emailext (
-                subject: "Pipeline Successful: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
-                body: "The pipeline completed successfully. Build Number: ${env.BUILD_NUMBER}\nCheck console output at: ${env.BUILD_URL}",
-                to: 'team@example.com'
+                subject: "Pipeline SUCCESS: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
+                body: "The Jenkins pipeline completed successfully.\n\nBuild: ${env.BUILD_NUMBER}\nConsole: ${env.BUILD_URL}",
+                to: 'recipient@example.com'
             )
         }
         failure {
             echo 'Pipeline failed!'
             emailext (
-                subject: "Pipeline Failed: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
-                body: "The pipeline failed. Build Number: ${env.BUILD_NUMBER}\nCheck console output at: ${env.BUILD_URL}",
-                to: 'team@example.com'
+                subject: "Pipeline FAILURE: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
+                body: "The Jenkins pipeline failed.\n\nBuild: ${env.BUILD_NUMBER}\nConsole: ${env.BUILD_URL}",
+                to: 'recipient@example.com'
             )
+        }
+        unstable {
+            echo 'Pipeline unstable!'
+        }
+        aborted {
+            echo 'Pipeline aborted!'
         }
     }
 }
