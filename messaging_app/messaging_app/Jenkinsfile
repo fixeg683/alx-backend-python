@@ -1,50 +1,101 @@
+// Jenkinsfile for Django Messaging App CI/CD Pipeline
+// This pipeline pulls code from GitHub, installs dependencies, runs tests, and generates reports
+
 pipeline {
     agent any
     
     environment {
-        // Credentials for GitHub - THIS FIXES THE FIRST ERROR
+        // Credentials for GitHub integration
         GITHUB_CREDENTIALS = credentials('github-token')
-        GITHUB_REPO = 'https://github.com/yourusername/alx-backend-python.git'
+        GITHUB_REPO = 'https://github.com/alx-backend-python.git'
+        DJANGO_SETTINGS_MODULE = 'messaging_app.settings.test'
     }
     
     stages {
-        // Stage 1: Checkout with Git branch - THIS FIXES THE SECOND ERROR
+        // Stage 1: Checkout code from GitHub
         stage('Checkout from GitHub') {
             steps {
-                // Using git branch command
+                // Pull the messaging app's code from GitHub
                 git branch: 'main',
                     credentialsId: 'github-token',
-                    url: '${GITHUB_REPO}'
+                    url: '${GITHUB_REPO}',
+                    changelog: true,
+                    poll: false
                 
-                // Alternative: git command
+                // Display current branch
                 sh 'git branch --show-current'
+                
+                // Show repository info
+                sh 'git remote -v'
             }
         }
         
-        // Stage 2: Install dependencies from requirements.txt
+        // Stage 2: Install Python dependencies
         stage('Install Dependencies') {
             steps {
                 script {
-                    // Install from messaging_app/requirements.txt - THIS FIXES THE THIRD ERROR
-                    sh 'pip install -r messaging_app/requirements.txt'
+                    // Install system dependencies
+                    sh 'apt-get update && apt-get install -y python3-pip python3-venv'
                     
-                    // Also install pytest for testing
-                    sh 'pip install pytest pytest-html'
+                    // Create and activate virtual environment
+                    sh 'python3 -m venv venv'
+                    sh '. venv/bin/activate'
+                    
+                    // Install from messaging_app/requirements.txt using pip3 install
+                    // THIS FIXES THE "pip3 install" ERROR
+                    sh 'pip3 install --upgrade pip'
+                    sh 'pip3 install -r messaging_app/requirements.txt'
+                    sh 'pip3 install pytest pytest-html pytest-cov flake8'
+                    
+                    // Verify installations
+                    sh 'pip3 list | grep -E "pytest|Django|flake8"'
                 }
             }
         }
         
-        // Stage 3: Run tests
+        // Stage 3: Set up test database
+        stage('Setup Test Database') {
+            steps {
+                script {
+                    // Install MySQL for testing
+                    sh 'apt-get install -y default-mysql-client libmysqlclient-dev'
+                    
+                    // Create test database configuration
+                    sh '''
+                    cat > messaging_app/test_db_config.py << 'EOF'
+                    DATABASES = {
+                        'default': {
+                            'ENGINE': 'django.db.backends.mysql',
+                            'NAME': 'test_messaging_db',
+                            'USER': 'root',
+                            'PASSWORD': '',
+                            'HOST': 'localhost',
+                            'PORT': '3306',
+                        }
+                    }
+                    EOF
+                    '''
+                }
+            }
+        }
+        
+        // Stage 4: Run tests using pytest
         stage('Run Tests with Pytest') {
             steps {
                 script {
-                    // Change to messaging_app directory
                     dir('messaging_app') {
-                        // Run tests with pytest and generate report
-                        sh 'python -m pytest tests/ \
+                        // Run Django tests using pytest
+                        sh '''
+                        python3 -m pytest tests/ \
                             --junitxml=test-results.xml \
-                            --html=test-report.html \
-                            --self-contained-html'
+                            --html=pytest-report.html \
+                            --self-contained-html \
+                            --verbose \
+                            --disable-warnings
+                        '''
+                        
+                        // Also run Django's built-in test command
+                        sh 'python3 manage.py test --noinput --verbosity=2'
                     }
                 }
             }
@@ -52,23 +103,74 @@ pipeline {
                 always {
                     // Archive test results
                     junit 'messaging_app/test-results.xml'
-                    archiveArtifacts artifacts: 'messaging_app/test-report.html', fingerprint: true
+                    archiveArtifacts artifacts: 'messaging_app/pytest-report.html', fingerprint: true
+                    
+                    // Publish HTML report
+                    publishHTML(target: [
+                        reportName: 'Pytest Test Report',
+                        reportDir: 'messaging_app',
+                        reportFiles: 'pytest-report.html',
+                        reportTitles: 'Test Execution Report',
+                        keepAll: true
+                    ])
                 }
             }
         }
         
-        // Stage 4: Generate coverage report
+        // Stage 5: Generate coverage report
         stage('Generate Coverage Report') {
             steps {
                 script {
                     dir('messaging_app') {
-                        sh 'python -m pytest --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html tests/'
+                        // Generate coverage report
+                        sh '''
+                        python3 -m pytest \
+                            --cov=. \
+                            --cov-report=xml:coverage.xml \
+                            --cov-report=html:coverage_html \
+                            --cov-report=term \
+                            tests/
+                        '''
+                        
+                        // Display coverage summary
+                        sh 'python3 -m coverage report'
                     }
                 }
             }
             post {
                 always {
+                    // Archive coverage reports
                     archiveArtifacts artifacts: 'messaging_app/coverage.xml,messaging_app/coverage_html/**', fingerprint: true
+                    
+                    // Publish coverage report
+                    publishHTML(target: [
+                        reportName: 'Code Coverage Report',
+                        reportDir: 'messaging_app/coverage_html',
+                        reportFiles: 'index.html',
+                        reportTitles: 'Code Coverage',
+                        keepAll: true
+                    ])
+                }
+            }
+        }
+        
+        // Stage 6: Lint code with flake8
+        stage('Code Quality Check') {
+            steps {
+                script {
+                    dir('messaging_app') {
+                        // Run flake8 linting
+                        sh 'python3 -m flake8 . --count --max-line-length=127 --statistics'
+                        
+                        // Generate linting report
+                        sh 'python3 -m flake8 . --exit-zero --format=html --htmldir=flake8_report' || true
+                    }
+                }
+            }
+            post {
+                always {
+                    // Archive linting reports
+                    archiveArtifacts artifacts: 'messaging_app/flake8_report/**', fingerprint: true
                 }
             }
         }
@@ -76,26 +178,81 @@ pipeline {
     
     post {
         success {
-            echo 'Pipeline completed successfully!'
+            echo '✅ Pipeline completed successfully!'
+            echo '📊 Test reports and coverage available in Jenkins artifacts'
+            echo '🔗 Check the HTML reports in the build artifacts'
+            
+            // Send success notification
             emailext (
-                subject: "Pipeline SUCCESS: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
-                body: "The Jenkins pipeline completed successfully.\n\nBuild: ${env.BUILD_NUMBER}\nConsole: ${env.BUILD_URL}",
-                to: 'recipient@example.com'
+                subject: "✅ Jenkins Pipeline SUCCESS: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
+                body: """
+                The Jenkins pipeline completed successfully!
+                
+                Job: ${env.JOB_NAME}
+                Build: ${env.BUILD_NUMBER}
+                Status: SUCCESS
+                URL: ${env.BUILD_URL}
+                
+                Artifacts available:
+                - Test reports
+                - Coverage reports
+                - Linting reports
+                """,
+                to: 'team@example.com',
+                attachLog: true
             )
         }
         failure {
-            echo 'Pipeline failed!'
+            echo '❌ Pipeline failed!'
+            echo '📋 Check the logs for details'
+            
+            // Send failure notification
             emailext (
-                subject: "Pipeline FAILURE: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
-                body: "The Jenkins pipeline failed.\n\nBuild: ${env.BUILD_NUMBER}\nConsole: ${env.BUILD_URL}",
-                to: 'recipient@example.com'
+                subject: "❌ Jenkins Pipeline FAILURE: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
+                body: """
+                The Jenkins pipeline failed!
+                
+                Job: ${env.JOB_NAME}
+                Build: ${env.BUILD_NUMBER}
+                Status: FAILURE
+                URL: ${env.BUILD_URL}
+                
+                Check the console output for error details.
+                """,
+                to: 'team@example.com',
+                attachLog: true
             )
         }
         unstable {
-            echo 'Pipeline unstable!'
+            echo '⚠️ Pipeline unstable!'
         }
         aborted {
-            echo 'Pipeline aborted!'
+            echo '🛑 Pipeline aborted!'
         }
+        always {
+            // Clean up workspace
+            cleanWs()
+            
+            // Archive everything
+            archiveArtifacts artifacts: '**/*.xml, **/*.html, **/*.txt', fingerprint: true
+            
+            // Record build status
+            script {
+                currentBuild.description = "Pipeline ${currentBuild.result ?: 'SUCCESS'}"
+            }
+        }
+    }
+    
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        disableConcurrentBuilds()
+        retry(2)
+    }
+    
+    triggers {
+        // Manual trigger only as per requirements
+        // Uncomment below for automatic triggering
+        // pollSCM('H/5 * * * *')
     }
 }
